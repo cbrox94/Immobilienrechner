@@ -2,71 +2,85 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 
-#### Vorabinformationen ####
-link = 'https://www.immobilienscout24.de/expose/155343655#'
-name = 'Lüdemannstr. 68'
-lage = 'Suedfriedhof'
-groesse_wohnung = 68.00
-zimmeranzahl = 2.5
-kaufpreis_initial = 159000.00
-hausgeld = 242.00
-nicht_umlagefähig = 166.42
-maklerprovision = 0.00
-baujahr = 1964
-heizungsart = "Fernwärme"
-energieklasse = "C"
+##### Initiale Informationen über Dialogfenster eingeben #####
+@st.dialog("Basisinformationen")
+def objekt_initialisieren():
+    link = st.text_input("Link zum Immobilien-Inserat")
+    name = st.text_input("Name der Immobilie")
+    lage = st.text_input("Lage")
+    groesse_wohnung = st.number_input("Größe der Wohnung (qm)", min_value=1.0, step=1.0, format="%.2f")
+    zimmeranzahl = st.number_input("Zimmeranzahl", min_value=0.0, step=0.5, format="%.1f")
+    kaufpreis_initial = st.number_input("Kaufpreis", min_value=0.0, step=1000.00, format="%.2f")
+    hausgeld = st.number_input("Hausgeld", min_value=0.0, step=1.0, format="%.2f")
+    nicht_umlagefähig = st.number_input("Nicht umlagefähige Nebenkosten", min_value=0.0, step=1.0, format="%.2f")
+    maklerprovision = st.number_input("Maklerprovision", min_value=0.0, step=0.1, format="%.2f")
+    baujahr = st.number_input("Baujahr", min_value=0, step=1)
+    heizungsart = st.selectbox("Heizungsart", ["Fernwärme", "Gas", "Öl"])
+    energieklasse = st.selectbox("Energieklasse", ["A", "B", "C", "D", "E", "F", "G"])
+        
+    st.session_state.objekte = []
+    
+    if st.button("Übernehmen"):
+        st.session_state.objekte.append({"link": link, 
+                                         "name": name, 
+                                         "lage": lage, 
+                                         "groesse_wohnung": groesse_wohnung, 
+                                         "zimmeranzahl": zimmeranzahl, 
+                                         "kaufpreis_initial": kaufpreis_initial, 
+                                         "hausgeld": hausgeld, 
+                                         "nicht_umlagefähig": nicht_umlagefähig, 
+                                         "maklerprovision": maklerprovision, 
+                                         "baujahr": baujahr, 
+                                         "heizungsart": heizungsart, 
+                                         "energieklasse": energieklasse})
+        st.rerun()
 
-nebenkosten = hausgeld - nicht_umlagefähig
+if "objekte" not in st.session_state:
+    if st.button("Eingabe Basisinformationen"):
+        objekt_initialisieren()
 
 # iterativ zu befuellen
-cashflow_dict = {"Posten": [], "Betrag": [], "Einnahme": []}
+st.session_state.cashflow_dict = {"Posten": [], "Betrag": [], "Einnahme": []}
 
 # Eine Funktion, die das cashflow_dict aktualisiert
 def update_cashflow_dict(posten, betrag, einnahme):
-    cashflow_dict["Posten"].append(posten)
-    cashflow_dict["Betrag"].append(betrag)
-    cashflow_dict["Einnahme"].append(einnahme)
-
-# Nebenkosten hinzufügen
-update_cashflow_dict("Nebenkosten", nebenkosten, True)
-
-# Hausgeld hinzufügen
-update_cashflow_dict("Hausgeld", hausgeld, False)
-
+    st.session_state.cashflow_dict["Posten"].append(posten)
+    st.session_state.cashflow_dict["Betrag"].append(betrag)
+    st.session_state.cashflow_dict["Einnahme"].append(einnahme)
 
 #### Stammdaten der Wohnung darstellen ####
-st.title(name)
+st.title(st.session_state.objekte[0]["name"])
 
 st.header("Details", divider=True)
-st.markdown(link)
+st.markdown(st.session_state.objekte[0]["link"])
 col1, col2, col3 = st.columns(3)
 with col1:
-    st.write("Lage:", lage)
-    st.write("Größe:", format(groesse_wohnung, ".1f"), "$m^2$")
+    st.write("Lage:", st.session_state.objekte[0]["lage"])
+    st.write("Größe:", format(st.session_state.objekte[0]["groesse_wohnung"], ".1f"), "$m^2$")
 with col2:
-    st.write("Angebotspreis:", round(kaufpreis_initial,2), "€")
-    st.write("Zimmer:", format(zimmeranzahl, ".1f"))
+    st.write("Angebotspreis:", round(st.session_state.objekte[0]["kaufpreis_initial"],2), "€")
+    st.write("Zimmer:", format(st.session_state.objekte[0]["zimmeranzahl"], ".1f"))
 
 col1, col2, col3 = st.columns(3)
 with col1:
-    st.write("Baujahr:", baujahr)
-    st.write("Hausgeld:", hausgeld, "€")
+    st.write("Baujahr:", st.session_state.objekte[0]["baujahr"])
+    st.write("Hausgeld:", st.session_state.objekte[0]["hausgeld"], "€")
 
 with col2:
-    st.write("Heizungsart:", heizungsart)
-    st.write("davon nicht-umlagefähig:", nicht_umlagefähig, "€")
+    st.write("Heizungsart:", st.session_state.objekte[0]["heizungsart"])
+    st.write("davon nicht-umlagefähig:", st.session_state.objekte[0]["nicht_umlagefähig"], "€")
 with col3:
-    st.write("Energieklasse:", energieklasse)
-    st.write("Maklerprovision:", maklerprovision, "%")
+    st.write("Energieklasse:", st.session_state.objekte[0]["energieklasse"])
+    st.write("Maklerprovision:", st.session_state.objekte[0]["maklerprovision"], "%")
    
-# 3 Reiter
-tab_finanzierung, tab_gesamtkosten, tab_hausgeld = st.tabs(["Finanzierung", "Gesamtkosten", "Hausgeld"])
+# 2 Reiter
+tab_finanzierung, tab_gesamtkosten = st.tabs(["Finanzierung", "Gesamtkosten"])
 
 with tab_finanzierung:
     st.header("Finanzierung", divider=True)
     col1, col2 = st.columns(2)
     with col1:
-        kaufpreis = st.number_input("Kaufpreis", min_value=0.0, value=kaufpreis_initial, step=1000.00, format="%.2f")
+        kaufpreis = st.number_input("Kaufpreis", min_value=0.0, value=st.session_state.objekte[0]["kaufpreis_initial"], step=1000.00, format="%.2f")
     with col2:
         finanzierungsart = st.selectbox("Finanzierungsart", [1.00, 0.95, 0.90])
 
@@ -95,7 +109,7 @@ with tab_gesamtkosten:
     prozentsatz_grundbuchkosten = 0.005
 
     # Einzelkosten    
-    maklercourtage = kaufpreis * maklerprovision / 100
+    maklercourtage = kaufpreis * st.session_state.objekte[0]["maklerprovision"] / 100
     grunderwerbssteuer = prozentsatz_grunderwerbssteuer * kaufpreis
     notarkosten = prozentsatz_notarkosten * kaufpreis
     grundbuchkosten = prozentsatz_grundbuchkosten * kaufpreis
@@ -105,7 +119,7 @@ with tab_gesamtkosten:
 
     col1, col2 = st.columns(2)
     with col1:
-        st.write("Maklercourtage (", str(maklerprovision), "%):", maklercourtage, "€")
+        st.write("Maklercourtage (", str(st.session_state.objekte[0]["maklerprovision"]), "%):", maklercourtage, "€")
         st.write("Grunderwerbssteuer:", grunderwerbssteuer, "€")
         st.write("Notarkosten:", notarkosten, "€")
         st.write("Grundbucheintrag:", grundbuchkosten, "€")
@@ -115,7 +129,7 @@ with tab_gesamtkosten:
 
 with tab_finanzierung:
     # "Finanzierung" Eigenkapital
-    privatkredit = st.checkbox("Fremdfinanzierung der Kaufnebenkosten", value = True)
+    privatkredit = st.checkbox("Fremdfinanzierung der Kaufnebenkosten", value = False)
     
     if privatkredit:
         # Einzubringendes eigenkapital
@@ -138,11 +152,11 @@ with tab_finanzierung:
     with col2:
         if eingabe_kaltmiete == "Gesamt":
             kaltmiete = st.number_input("Kaltmiete:", min_value=1.0, value=500.00, step=5.0, format="%.2f")
-            quadratmeterpreis = kaltmiete/groesse_wohnung
+            quadratmeterpreis = kaltmiete/st.session_state.objekte[0]["groesse_wohnung"]
             st.write("(", round(quadratmeterpreis,2), "€/m^2)")
         else:
             quadratmeterpreis = st.number_input("Quadratmeterpreis:", min_value=1.0, value=11.50, step=0.5, format="%.2f")
-            kaltmiete = quadratmeterpreis * groesse_wohnung
+            kaltmiete = quadratmeterpreis * st.session_state.objekte[0]["groesse_wohnung"]
             st.write("(Kaltmiete:", round(kaltmiete,2), "€)")
 
     # Kaltmiete als Ausgabe in Dict aufnehmen
@@ -151,7 +165,7 @@ with tab_finanzierung:
 ##### Cashflow Analyse #####
 st.header("Cashflow Analyse", divider = True)
 
-cashflow = pd.DataFrame(cashflow_dict)
+cashflow = pd.DataFrame(st.session_state.cashflow_dict)
 
 col1, col2 = st.columns(2)
 
@@ -213,13 +227,13 @@ if kaltmiete >= rate_monatl:
 else:
     kaltmieteZinsTilgung = False
 
-if kaltmiete >= rate_monatl + nicht_umlagefähig:
+if kaltmiete >= rate_monatl + st.session_state.objekte[0]["nicht_umlagefähig"]:
     deckungNichtUmlagefähig = True
 else:
     deckungNichtUmlagefähig = False
     
 if privatkredit:
-    if kaltmiete >= rate_monatl + nicht_umlagefähig + rueckzahlung_ek_monatl:
+    if kaltmiete >= rate_monatl + st.session_state.objekte[0]["nicht_umlagefähig"] + rueckzahlung_ek_monatl:
         deckungRatePrivatkredit = True
     else:
         deckungRatePrivatkredit = False
