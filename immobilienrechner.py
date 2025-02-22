@@ -2,6 +2,7 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 
+st.title("Willkommen auf dem Realvaluator")
 ##### Initiale Informationen über Dialogfenster eingeben #####
 @st.dialog("Basisinformationen")
 def objekt_initialisieren():
@@ -12,7 +13,7 @@ def objekt_initialisieren():
     zimmeranzahl = st.number_input("Zimmeranzahl", min_value=0.0, step=0.5, format="%.1f")
     kaufpreis_initial = st.number_input("Kaufpreis", min_value=0.0, step=1000.00, format="%.2f")
     hausgeld = st.number_input("Hausgeld", min_value=0.0, step=1.0, format="%.2f")
-    nicht_umlagefähig = st.number_input("Nicht umlagefähige Nebenkosten", min_value=0.0, step=1.0, format="%.2f")
+    nicht_umlagefähig = st.number_input("Davon nicht umlagefähig", min_value=0.0, step=1.0, format="%.2f")
     maklerprovision = st.number_input("Maklerprovision", min_value=0.0, step=0.1, format="%.2f")
     baujahr = st.number_input("Baujahr", min_value=0, step=1)
     heizungsart = st.selectbox("Heizungsart", ["Fernwärme", "Gas", "Öl"])
@@ -36,8 +37,33 @@ def objekt_initialisieren():
         st.rerun()
 
 if "objekte" not in st.session_state:
-    if st.button("Eingabe Basisinformationen"):
-        objekt_initialisieren()
+    col1, col2 = st.columns([3,1])
+    with col2:
+        if st.button("+ Eingabe Basisinformationen"):
+            objekt_initialisieren()
+    with col1:
+        st.write("Geben Sie zuerst die Basisinformationen der Immobilie ein:")
+    st.subheader("Erste Schritte", divider=True)
+    st.write("- Klicken Sie auf den Button **'Eingabe Basisinformationen'**.")
+    st.write("- Machen Sie zumindest Angaben über **Kaufpreis** und **Größe**, um alle Berechnungen darzustellen.")
+    st.write("- Die übrigen Abfragen sind optional.")
+    st.subheader("Erläuterungen", divider=True)
+    st.write("**Abschnitt 'Details'**")
+    st.write("Darstellung der Eingegebenen Basisinformationen.")
+    st.write("**Abschnitt 'Finanzierung'**")
+    st.write("Aus Kaufpreis und Finanzierungsart wird die Kredithoehe berechnet.")
+    st.write("Über Zins und Tilgung wird die monatliche Kreditrate berechnet.")
+    st.write("**Abschnitt 'Einnahmen'**")
+    st.write("Die Einnahmen (Kaltmiete) können entweder direkt eingegeben oder über den Quadratmeterpreis berechnet werden.")
+    st.write("**Cashflow Analyse**")
+    st.write("Ergebnis der Kalkulation. Einnahmen und Ausgaben werden gegenübergestellt.")
+    st.write("1 Grüner Haken, wenn die Kaltmiete Zins und Tilgung deckt.")
+    st.write("2 Grüne Haken, wenn die Kaltmiete zusätzlich die nicht-umlagefähigen Nebenkosten deckt.")
+    st.subheader("Kontakt", divider=True)
+    st.write("Github: https://github.com/cbrox94")
+    st.write("Discord: cbrox1994")
+
+    
 
 # iterativ zu befuellen
 st.session_state.cashflow_dict = {"Posten": [], "Betrag": [], "Einnahme": []}
@@ -72,7 +98,7 @@ with col2:
 with col3:
     st.write("Energieklasse:", st.session_state.objekte[0]["energieklasse"])
     st.write("Maklerprovision:", st.session_state.objekte[0]["maklerprovision"], "%")
-   
+
 # 2 Reiter
 tab_finanzierung, tab_gesamtkosten = st.tabs(["Finanzierung", "Gesamtkosten"])
 
@@ -142,6 +168,7 @@ with tab_finanzierung:
         update_cashflow_dict("Rückzahlung Privatkredit", rueckzahlung_ek_monatl, False)
 
     # Radio
+    st.header("Einnahmen", divider=True)
     col1, col2 = st.columns(2)
     with col1:
         eingabe_kaltmiete = st.radio(
