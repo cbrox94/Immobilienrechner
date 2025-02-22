@@ -9,9 +9,9 @@ def objekt_initialisieren():
     link = st.text_input("Link zum Immobilien-Inserat")
     name = st.text_input("Name der Immobilie")
     lage = st.text_input("Lage")
-    groesse_wohnung = st.number_input("Größe der Wohnung (qm)", min_value=1.0, step=1.0, format="%.2f")
+    kaufpreis_initial = st.number_input("Kaufpreis*", min_value=1.0, step=1000.00, format="%.2f")
+    groesse_wohnung = st.number_input("Größe der Wohnung (qm)*", min_value=1.0, step=1.0, format="%.2f")
     zimmeranzahl = st.number_input("Zimmeranzahl", min_value=0.0, step=0.5, format="%.1f")
-    kaufpreis_initial = st.number_input("Kaufpreis", min_value=0.0, step=1000.00, format="%.2f")
     hausgeld = st.number_input("Hausgeld", min_value=0.0, step=1.0, format="%.2f")
     nicht_umlagefähig = st.number_input("Davon nicht umlagefähig", min_value=0.0, step=1.0, format="%.2f")
     maklerprovision = st.number_input("Maklerprovision", min_value=0.0, step=0.1, format="%.2f")
@@ -104,9 +104,9 @@ tab_finanzierung, tab_gesamtkosten = st.tabs(["Finanzierung", "Gesamtkosten"])
 
 with tab_finanzierung:
     st.header("Finanzierung", divider=True)
-    col1, col2 = st.columns(2)
+    col1, col2 = st.columns([3,1])
     with col1:
-        kaufpreis = st.number_input("Kaufpreis", min_value=0.0, value=st.session_state.objekte[0]["kaufpreis_initial"], step=1000.00, format="%.2f")
+        kaufpreis = st.slider("Kaufpreis", 0.5*st.session_state.objekte[0]["kaufpreis_initial"], 1.2*st.session_state.objekte[0]["kaufpreis_initial"], st.session_state.objekte[0]["kaufpreis_initial"], step=500.00)
     with col2:
         finanzierungsart = st.selectbox("Finanzierungsart", [1.00, 0.95, 0.90])
 
@@ -145,11 +145,21 @@ with tab_gesamtkosten:
 
     col1, col2 = st.columns(2)
     with col1:
-        st.write("Maklercourtage (", str(st.session_state.objekte[0]["maklerprovision"]), "%):", maklercourtage, "€")
-        st.write("Grunderwerbssteuer:", grunderwerbssteuer, "€")
-        st.write("Notarkosten:", notarkosten, "€")
-        st.write("Grundbucheintrag:", grundbuchkosten, "€")
-        st.write("**Gesamtkosten:**", gesamtkosten, "€")
+        col3, col4 = st.columns(2)
+        with col3:
+            st.write("Kaufpreis:")
+            st.write("Maklercourtage (", str(st.session_state.objekte[0]["maklerprovision"]), "%):")
+            st.write("Grunderwerbssteuer:")
+            st.write("Notarkosten:")
+            st.write("Grundbucheintrag:")
+            st.write("**Gesamtkosten:**")
+        with col4:
+            st.write(kaufpreis, "€")
+            st.write(maklercourtage, "€")
+            st.write(grunderwerbssteuer, "€")
+            st.write(notarkosten, "€")
+            st.write(grundbuchkosten, "€")
+            st.write(gesamtkosten, "€")
     with col2:
         st.write("Piechart soon available")
 
@@ -178,7 +188,7 @@ with tab_finanzierung:
         ) 
     with col2:
         if eingabe_kaltmiete == "Gesamt":
-            kaltmiete = st.number_input("Kaltmiete:", min_value=1.0, value=500.00, step=5.0, format="%.2f")
+            kaltmiete = st.number_input("Kaltmiete:", min_value=1.0, value=11.50 * st.session_state.objekte[0]["groesse_wohnung"], step=5.0, format="%.2f")
             quadratmeterpreis = kaltmiete/st.session_state.objekte[0]["groesse_wohnung"]
             st.write("(", round(quadratmeterpreis,2), "€/m^2)")
         else:
@@ -192,10 +202,22 @@ with tab_finanzierung:
 ##### Cashflow Analyse #####
 st.header("Cashflow Analyse", divider = True)
 
+#### KPIs ####
+bruttorealrendite = kaltmiete * 12 / kaufpreis * 100
+nettorealrendite = kaltmiete * 12 / gesamtkosten * 100
+
+col1, col2 = st.columns(2)
+with col1:
+    tile = col1.container(height=80)
+    tile.write(":balloon: Bruttorealrendite: ")
+    tile.write(round(bruttorealrendite,2))
+with col2:
+    tile2 = col2.container(height=80)
+    tile2.write(":balloon: Nettorealrendite: ")
+    tile2.write(round(nettorealrendite,2))
 cashflow = pd.DataFrame(st.session_state.cashflow_dict)
 
 col1, col2 = st.columns(2)
-
 # Einnahmen
 with col1:
     col4, col5 = st.columns(2)
