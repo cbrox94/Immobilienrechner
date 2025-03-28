@@ -1,6 +1,9 @@
 import streamlit as st
 import numpy as np
 import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+
 
 st.title("Willkommen auf dem Realvaluator")
 ##### Initiale Informationen über Dialogfenster eingeben #####
@@ -161,7 +164,27 @@ with tab_gesamtkosten:
             st.write(grundbuchkosten, "€")
             st.write(gesamtkosten, "€")
     with col2:
-        st.write("Piechart soon available")
+        # Daten
+        kategorien = ['Kaufpreis', 'Maklercourtage', 'Grunderwerbssteuer', 'Notarkosten', 'Grundbucheintrag']
+        werte = [kaufpreis, maklercourtage, grunderwerbssteuer, notarkosten, grundbuchkosten]
+
+        # Kreisdiagramm erstellen
+        fig = go.Figure(
+            data=[
+                go.Pie(
+                    labels=kategorien,
+                    values=werte,
+                    hole=0.5,  # Donut-Style
+                    pull=[0, 0.2, 0.2, 0.2, 0.2],  # Herausgezogene Segmente
+                    textinfo='none',  # Nur Label + Wert anzeigen
+                    marker=dict(colors=px.colors.qualitative.Pastel1)  # Hier Farben setzen
+                )
+            ]
+        )
+        #Legende ausblenden
+        fig.update_layout(showlegend=False)
+        # In Streamlit anzeigen
+        st.plotly_chart(fig)
 
 with tab_finanzierung:
     # "Finanzierung" Eigenkapital
@@ -199,23 +222,30 @@ with tab_finanzierung:
     # Kaltmiete als Ausgabe in Dict aufnehmen
     update_cashflow_dict("Kaltmiete", kaltmiete, True)
 
+    #### KPIs ####
+    bruttorealrendite = kaltmiete * 12 / kaufpreis * 100
+    nettorealrendite = kaltmiete * 12 / gesamtkosten * 100
+
+    col1, col2 = st.columns(2)
+    with col1:
+        if bruttorealrendite > 4.5:
+            st.markdown("<span style='color: green;'>Bruttorealrendite: " + str(round(bruttorealrendite,2)) + "%</span>", unsafe_allow_html=True)
+        elif bruttorealrendite <= 4.5 and bruttorealrendite > 3.9:
+            st.markdown("<span style='color: #F2C464;'>Bruttorealrendite: " + str(round(bruttorealrendite,2)) + "%</span>", unsafe_allow_html=True)
+        else:
+            st.markdown("<span style='color: red;'>Bruttorealrendite: " + str(round(bruttorealrendite,2)) + "%</span>", unsafe_allow_html=True)
+    with col2:
+        if bruttorealrendite > 4.5:
+            st.markdown("<span style='color: green;'>Nettorealrendite: " + str(round(nettorealrendite,2)) + "%</span>", unsafe_allow_html=True)
+        elif bruttorealrendite <= 4.5 and bruttorealrendite > 3.9:
+            st.markdown("<span style='color: #F2C464;'>Nettorealrendite: " + str(round(nettorealrendite,2)) + "%</span>", unsafe_allow_html=True)
+        else:
+            st.markdown("<span style='color: red;'>Nettorealrendite: " + str(round(nettorealrendite,2)) + "%</span>", unsafe_allow_html=True)
+
+cashflow = pd.DataFrame(st.session_state.cashflow_dict)
+
 ##### Cashflow Analyse #####
 st.header("Cashflow Analyse", divider = True)
-
-#### KPIs ####
-bruttorealrendite = kaltmiete * 12 / kaufpreis * 100
-nettorealrendite = kaltmiete * 12 / gesamtkosten * 100
-
-col1, col2 = st.columns(2)
-with col1:
-    tile = col1.container(height=80)
-    tile.write(":balloon: Bruttorealrendite: ")
-    tile.write(round(bruttorealrendite,2))
-with col2:
-    tile2 = col2.container(height=80)
-    tile2.write(":balloon: Nettorealrendite: ")
-    tile2.write(round(nettorealrendite,2))
-cashflow = pd.DataFrame(st.session_state.cashflow_dict)
 
 col1, col2 = st.columns(2)
 # Einnahmen
