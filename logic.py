@@ -21,8 +21,16 @@ def berechne_kredit(kaufpreis: float, finanzierungsart: float, gesamtkosten: flo
     return {"hoehe_kredit": hoehe_kredit, "eigenkapital": gesamtkosten - hoehe_kredit}
 
 
+def berechne_zins_monatl(hoehe_kredit: float, zins: float) -> float:
+    return hoehe_kredit * zins / 100 / 12
+
+
+def berechne_tilgung_monatl(hoehe_kredit: float, tilgung: float) -> float:
+    return hoehe_kredit * tilgung / 100 / 12
+
+
 def berechne_rate_monatl(hoehe_kredit: float, zins: float, tilgung: float) -> float:
-    return hoehe_kredit * (zins / 100 + tilgung / 100) / 12
+    return berechne_zins_monatl(hoehe_kredit, zins) + berechne_tilgung_monatl(hoehe_kredit, tilgung)
 
 
 def calculate_kaufnebenkosten(
@@ -64,8 +72,8 @@ def calculate_renditen(kaltmiete: float, kaufpreis: float, gesamtkosten: float) 
 
 
 def calculate_cashflow_summary(cashflow: pd.DataFrame) -> dict:
-    einnahmen = sum(cashflow.loc[cashflow.iloc[:, 2] == True, cashflow.columns[1]])
-    ausgaben = sum(cashflow.loc[cashflow.iloc[:, 2] == False, cashflow.columns[1]])
+    einnahmen = cashflow.loc[cashflow["Einnahme"] == True, "Betrag"].sum()
+    ausgaben = cashflow.loc[cashflow["Einnahme"] == False, "Betrag"].sum()
     return {
         "einnahmen_gesamt": einnahmen,
         "ausgaben_gesamt": ausgaben,
@@ -82,8 +90,8 @@ def calculate_deckung(
     privatkredit: bool = False,
     rueckzahlung_ek_monatl: float = 0.0,
 ) -> dict:
-    zins_monatl = hoehe_kredit * zins / 100 / 12
-    tilgung_monatl = hoehe_kredit * tilgung / 100 / 12
+    zins_monatl = berechne_zins_monatl(hoehe_kredit, zins)
+    tilgung_monatl = berechne_tilgung_monatl(hoehe_kredit, tilgung)
     result = {
         "deckungZins": kaltmiete >= zins_monatl,
         "deckungZinsTilgung": kaltmiete >= zins_monatl + tilgung_monatl,
@@ -109,11 +117,11 @@ def calculate_steuer(
     abschreibung = (kaufpreis * anteil_gebaude / 100) * (afa_satz / 100)
     mieteinnahmen = kaltmiete * 12
     ergebnis = mieteinnahmen - (zins_kosten + abschreibung)
-    steuerersparnis = ergebnis * (steuersatz / 100) * (-1)
+    steuer_effekt = ergebnis * (steuersatz / 100) * (-1)
     return {
         "zins_kosten": zins_kosten,
         "abschreibung": abschreibung,
         "mieteinnahmen": mieteinnahmen,
         "ergebnis": ergebnis,
-        "steuerersparnis": steuerersparnis,
+        "steuer_effekt": steuer_effekt,
     }

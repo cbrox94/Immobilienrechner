@@ -5,6 +5,8 @@ from logic import (
     get_rendite_color,
     berechne_kredit_schnell,
     berechne_kredit,
+    berechne_zins_monatl,
+    berechne_tilgung_monatl,
     berechne_rate_monatl,
     calculate_kaufnebenkosten,
     calculate_privatkredit,
@@ -218,7 +220,7 @@ col1, col2 = st.columns([3, 1])
 with col1:
     kaufpreis = st.number_input(
         "Kaufpreis", min_value=0.01, value=obj["kaufpreis_initial"],
-        max_value=obj["kaufpreis_initial"], step=500.00
+        step=500.00
     )
 with col2:
     finanzierungsart = st.selectbox(
@@ -246,8 +248,8 @@ with col2:
 rate_monatl = berechne_rate_monatl(hoehe_kredit, zins, tilgung)
 st.write("**Rate (monatl.):**", "{:,.2f} €".format(round(rate_monatl, 2)))
 
-update_cashflow_dict("Zins", hoehe_kredit * (zins / 100) / 12, False)
-update_cashflow_dict("Tilgung", hoehe_kredit * (tilgung / 100) / 12, False)
+update_cashflow_dict("Zins", berechne_zins_monatl(hoehe_kredit, zins), False)
+update_cashflow_dict("Tilgung", berechne_tilgung_monatl(hoehe_kredit, tilgung), False)
 
 privatkredit = st.checkbox("Fremdfinanzierung der Kaufnebenkosten", value=False)
 
@@ -398,17 +400,17 @@ col1, col2 = st.columns(2)
 with col1:
     col3, col4 = st.columns([2, 1])
     with col3:
-        st.markdown("Mietteinnahmen:")
+        st.markdown("Mieteinnahmen:")
         st.write("Zinsen:")
         st.write("Abschreibung:")
         st.write("**Ergebnis:**")
-        st.write("**Steuerersparnis:**")
+        st.write("**Steuerlast:**" if steuer["steuer_effekt"] < 0 else "**Steuerersparnis:**")
     with col4:
         st.write("➕", "{:,.2f} €".format(steuer["mieteinnahmen"]))
         st.write("➖", "{:,.2f} €".format(steuer["zins_kosten"]))
         st.write("➖", "{:,.2f} €".format(steuer["abschreibung"]))
         st.write("🟰", "{:,.2f} €".format(steuer["ergebnis"]))
-        st.write("**{:,.2f} €**".format(steuer["steuerersparnis"]))
+        st.write("**{:,.2f} €**".format(steuer["steuer_effekt"]))
 
 ############################################ Eindrücke ############################################
 st.header("Eindrücke", divider=True)

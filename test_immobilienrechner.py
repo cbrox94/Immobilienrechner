@@ -1,15 +1,14 @@
 """
 Tests für den Immobilienrechner.
 
-Getestet werden die reinen Berechnungsformeln aus immobilienrechner.py
-sowie die Farblogik von render_rendite_kpi.
+Getestet werden die reinen Berechnungsformeln aus logic.py
+sowie die Farblogik von get_rendite_color.
 Streamlit-Aufrufe werden vollständig gemockt.
 """
 
 import sys
-import types
 import unittest
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock
 
 
 # ---------------------------------------------------------------------------
@@ -30,18 +29,30 @@ def _build_st_mock():
 _st_mock = _build_st_mock()
 sys.modules["streamlit"] = _st_mock
 
-# pandas und PIL brauchen wir echt
-import pandas as pd  # noqa: E402 (nach Mock-Setup)
-from PIL import Image  # noqa: E402
+import pandas as pd  # noqa: E402
+
+from logic import (  # noqa: E402
+    berechne_kredit,
+    berechne_kredit_schnell,
+    berechne_rate_monatl,
+    berechne_zins_monatl,
+    berechne_tilgung_monatl,
+    calculate_kaufnebenkosten,
+    calculate_privatkredit,
+    calculate_renditen,
+    calculate_steuer,
+    calculate_deckung,
+    calculate_cashflow_summary,
+    get_rendite_color,
+)
 
 
 # ---------------------------------------------------------------------------
-# Berechnungsfunktionen – exakt die Formeln aus immobilienrechner.py
-# (losgelöst vom Streamlit-Kontext, direkt testbar)
+# Lokale Adapter-Funktionen mit einheitlicher Signatur für die Tests
 # ---------------------------------------------------------------------------
 
 def calc_hoehe_kredit(kaufpreis: float, finanzierungssatz: float) -> float:
-    return kaufpreis * finanzierungssatz
+    return berechne_kredit_schnell(kaufpreis, finanzierungssatz)["hoehe_kredit"]
 
 
 def calc_eigenkapital(gesamtkosten: float, hoehe_kredit: float) -> float:
@@ -49,11 +60,11 @@ def calc_eigenkapital(gesamtkosten: float, hoehe_kredit: float) -> float:
 
 
 def calc_rate_monatlich(hoehe_kredit: float, zins_pct: float, tilgung_pct: float) -> float:
-    return hoehe_kredit * (zins_pct / 100 + tilgung_pct / 100) / 12
+    return berechne_rate_monatl(hoehe_kredit, zins_pct, tilgung_pct)
 
 
 def calc_maklercourtage(kaufpreis: float, maklerprovision_pct: float) -> float:
-    return kaufpreis * maklerprovision_pct / 100
+    return calculate_kaufnebenkosten(kaufpreis, maklerprovision_pct, 0.0, 0.0, 0.0)["maklercourtage"]
 
 
 def calc_kaufnebenkosten(
@@ -63,11 +74,9 @@ def calc_kaufnebenkosten(
     notarkosten_pct: float,
     grundbuchkosten_pct: float,
 ) -> float:
-    makler = kaufpreis * maklerprovision_pct / 100
-    grunderwerbssteuer = (grunderwerbssteuer_pct / 100) * kaufpreis
-    notarkosten = (notarkosten_pct / 100) * kaufpreis
-    grundbuchkosten = (grundbuchkosten_pct / 100) * kaufpreis
-    return makler + grunderwerbssteuer + notarkosten + grundbuchkosten
+    return calculate_kaufnebenkosten(
+        kaufpreis, maklerprovision_pct, grunderwerbssteuer_pct, notarkosten_pct, grundbuchkosten_pct
+    )["kaufnebenkosten_gesamt"]
 
 
 def calc_gesamtkosten(kaufpreis: float, kaufnebenkosten: float) -> float:
@@ -75,28 +84,12 @@ def calc_gesamtkosten(kaufpreis: float, kaufnebenkosten: float) -> float:
 
 
 def calc_bruttorealrendite(kaltmiete: float, kaufpreis: float) -> float:
-    return kaltmiete * 12 / kaufpreis * 100
+    return calculate_renditen(kaltmiete, kaufpreis, kaufpreis)["bruttorealrendite"]
 
 
 def calc_nettorealrendite(kaltmiete: float, gesamtkosten: float) -> float:
-    return kaltmiete * 12 / gesamtkosten * 100
+    return calculate_renditen(kaltmiete, gesamtkosten, gesamtkosten)["nettorealrendite"]
 
-
-def calc_abschreibung(kaufpreis: float, anteil_gebaeude_pct: int, afa_satz_pct: float) -> float:
-    return (kaufpreis * anteil_gebaeude_pct / 100) * (afa_satz_pct / 100)
-
-
-def calc_steuerersparnis(
-    kaltmiete: float,
-    hoehe_kredit: float,
-    zins_pct: float,
-    abschreibung: float,
-    steuersatz_pct: int,
-) -> float:
-    mieteinnahmen = kaltmiete * 12
-    zins_kosten = hoehe_kredit * (zins_pct / 100)
-    ergebnis = mieteinnahmen - zins_kosten - abschreibung
-    return ergebnis * (steuersatz_pct / 100) * (-1)
 
 
 def calc_deckung(
@@ -107,28 +100,21 @@ def calc_deckung(
     nicht_umlagefaehig: float = 0.0,
     privatkredit_monatl: float = 0.0,
 ) -> dict:
-    zins_monatl = hoehe_kredit * zins_pct / 100 / 12
-    tilgung_monatl = hoehe_kredit * tilgung_pct / 100 / 12
+    result = calculate_deckung(
+        kaltmiete, hoehe_kredit, zins_pct, tilgung_pct, nicht_umlagefaehig,
+        privatkredit=(privatkredit_monatl > 0),
+        rueckzahlung_ek_monatl=privatkredit_monatl,
+    )
     return {
-        "zins": kaltmiete >= zins_monatl,
-        "zins_tilgung": kaltmiete >= zins_monatl + tilgung_monatl,
-        "zins_tilgung_nk": kaltmiete >= zins_monatl + tilgung_monatl + nicht_umlagefaehig,
-        "zins_tilgung_nk_pk": kaltmiete >= zins_monatl + tilgung_monatl + nicht_umlagefaehig + privatkredit_monatl,
+        "zins": result["deckungZins"],
+        "zins_tilgung": result["deckungZinsTilgung"],
+        "zins_tilgung_nk": result["deckungZinsTilgungNichtUmlagefähig"],
+        "zins_tilgung_nk_pk": result.get("deckungZinsTilgungNichtUmlagefähigPrivatkredit", False),
     }
 
 
-# ---------------------------------------------------------------------------
-# Hilfsfunktion: render_rendite_kpi direkt importieren
-# ---------------------------------------------------------------------------
-
 def _rendite_color(value: float) -> str:
-    """Gibt die Farbe zurück, die render_rendite_kpi verwenden würde."""
-    if value > 4.5:
-        return "green"
-    elif value >= 3.9:
-        return "#F2C464"
-    else:
-        return "red"
+    return get_rendite_color(value)
 
 
 # ---------------------------------------------------------------------------
@@ -228,24 +214,22 @@ class TestRenditeberechnungen(unittest.TestCase):
 class TestSteuerberechnung(unittest.TestCase):
 
     def test_abschreibung_standard(self):
-        # 300_000 € Kaufpreis, 85 % Gebäudeanteil, 2 % AfA
-        result = calc_abschreibung(300_000, 85, 2.0)
-        self.assertAlmostEqual(result, 300_000 * 0.85 * 0.02)
+        result = calculate_steuer(300_000, 0.0, 0.0, 0.0, 85, 2.0, 0)
+        self.assertAlmostEqual(result["abschreibung"], 300_000 * 0.85 * 0.02)
 
     def test_abschreibung_null_afa(self):
-        self.assertAlmostEqual(calc_abschreibung(300_000, 85, 0.0), 0.0)
+        result = calculate_steuer(300_000, 0.0, 0.0, 0.0, 85, 0.0, 0)
+        self.assertAlmostEqual(result["abschreibung"], 0.0)
 
-    def test_steuerersparnis_verlust_erzeugt_ersparnis(self):
-        # Hohe Zinsen + AfA → Verlust → positive Steuerersparnis
-        afa = calc_abschreibung(300_000, 85, 2.0)
-        result = calc_steuerersparnis(800, 240_000, 4.0, afa, 42)
-        self.assertGreater(result, 0)
+    def test_steuereffekt_verlust_erzeugt_ersparnis(self):
+        # Hohe Zinsen + AfA → Verlust → positiver steuer_effekt (Ersparnis)
+        result = calculate_steuer(300_000, 240_000, 800, 4.0, 85, 2.0, 42)
+        self.assertGreater(result["steuer_effekt"], 0)
 
-    def test_steuerersparnis_positives_ergebnis_ergibt_steuerlast(self):
-        # Sehr hohe Miete, geringe Zinsen → positives Ergebnis → negative Ersparnis
-        afa = calc_abschreibung(100_000, 85, 2.0)
-        result = calc_steuerersparnis(3000, 50_000, 2.0, afa, 25)
-        self.assertLess(result, 0)
+    def test_steuereffekt_positives_ergebnis_ergibt_steuerlast(self):
+        # Sehr hohe Miete, geringe Zinsen → positives Ergebnis → negativer steuer_effekt (Steuerlast)
+        result = calculate_steuer(100_000, 50_000, 3000, 2.0, 85, 2.0, 25)
+        self.assertLess(result["steuer_effekt"], 0)
 
 
 class TestDeckungslogik(unittest.TestCase):
@@ -353,6 +337,79 @@ class TestCashflowDict(unittest.TestCase):
         self.assertAlmostEqual(ausgaben, 1040.0)
         ueberschuss = einnahmen - ausgaben
         self.assertAlmostEqual(ueberschuss, -40.0)
+
+
+class TestBerechneKredit(unittest.TestCase):
+    """Testet berechne_kredit (Hauptseite-Variante mit Gesamtkosten inkl. NK)."""
+
+    def test_hoehe_kredit_entspricht_kaufpreis_mal_finanzierungsart(self):
+        result = berechne_kredit(300_000, 0.80, 330_000)
+        self.assertAlmostEqual(result["hoehe_kredit"], 240_000.0)
+
+    def test_eigenkapital_ist_gesamtkosten_minus_kredit(self):
+        # Gesamtkosten 330_000, Kredit 240_000 → EK = 90_000
+        result = berechne_kredit(300_000, 0.80, 330_000)
+        self.assertAlmostEqual(result["eigenkapital"], 90_000.0)
+
+    def test_vollfinanzierung_eigenkapital_entspricht_nebenkosten(self):
+        # Kredit = Kaufpreis → EK deckt nur die Nebenkosten
+        result = berechne_kredit(300_000, 1.0, 330_000)
+        self.assertAlmostEqual(result["hoehe_kredit"], 300_000.0)
+        self.assertAlmostEqual(result["eigenkapital"], 30_000.0)
+
+
+class TestCalculatePrivatkredit(unittest.TestCase):
+    """Testet calculate_privatkredit (Eigenkapital-Rückzahlung an Drittperson)."""
+
+    def test_jaehrliche_rueckzahlung_korrekt(self):
+        # 60_000 € EK über 5 Jahre → 12_000 € / Jahr
+        result = calculate_privatkredit(60_000, 5)
+        self.assertAlmostEqual(result["rueckzahlung_ek_jaehrl"], 12_000.0)
+
+    def test_monatliche_rueckzahlung_korrekt(self):
+        # 60_000 € über 5 Jahre → 1_000 € / Monat
+        result = calculate_privatkredit(60_000, 5)
+        self.assertAlmostEqual(result["rueckzahlung_ek_monatl"], 1_000.0)
+
+    def test_laengere_laufzeit_ergibt_geringere_rate(self):
+        kurz = calculate_privatkredit(60_000, 5)
+        lang = calculate_privatkredit(60_000, 10)
+        self.assertGreater(kurz["rueckzahlung_ek_monatl"], lang["rueckzahlung_ek_monatl"])
+
+
+class TestCalculateCashflowSummary(unittest.TestCase):
+    """Testet calculate_cashflow_summary mit echten DataFrames."""
+
+    def _make_df(self, rows):
+        return pd.DataFrame(rows, columns=["Posten", "Betrag", "Einnahme"])
+
+    def test_einnahmen_und_ausgaben_korrekt(self):
+        df = self._make_df([
+            ("Kaltmiete", 1000.0, True),
+            ("Zins",       800.0, False),
+            ("Tilgung",    240.0, False),
+        ])
+        result = calculate_cashflow_summary(df)
+        self.assertAlmostEqual(result["einnahmen_gesamt"], 1000.0)
+        self.assertAlmostEqual(result["ausgaben_gesamt"], 1040.0)
+
+    def test_ueberschuss_korrekt(self):
+        df = self._make_df([
+            ("Kaltmiete", 1200.0, True),
+            ("Zins",       800.0, False),
+            ("Tilgung",    240.0, False),
+        ])
+        result = calculate_cashflow_summary(df)
+        self.assertAlmostEqual(result["ueberschuss_gesamt"], 160.0)
+
+    def test_negativer_ueberschuss_bei_unterdeckung(self):
+        df = self._make_df([
+            ("Kaltmiete", 900.0, True),
+            ("Zins",      800.0, False),
+            ("Tilgung",   240.0, False),
+        ])
+        result = calculate_cashflow_summary(df)
+        self.assertLess(result["ueberschuss_gesamt"], 0)
 
 
 if __name__ == "__main__":
